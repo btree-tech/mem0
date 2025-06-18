@@ -1,5 +1,5 @@
 # export mem0-ts subtree for GitHub-based package referencing
-name: Export mem0-ts subtree
+name: Build and Export mem0-ts Subtree
 
 on:
   push:
@@ -7,24 +7,44 @@ on:
       - btree-develop
 
 jobs:
-  export-subtree:
+  build-and-export:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source repository
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history is needed for subtree
+          fetch-depth: 0
 
-      - name: Set up Git
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        working-directory: mem0-ts
+        run: npm install
+
+      - name: Build the project
+        working-directory: mem0-ts
+        run: npm run build
+
+      - name: Copy build to root-level temp directory
+        run: |
+          mkdir mem0-ts-dist
+          cp -r mem0-ts/* mem0-ts-dist/
+          rm -rf mem0-ts-dist/node_modules  # exclude unnecessary
+          rm -rf mem0-ts-dist/src          # optional: omit source
+          rm -rf mem0-ts-dist/.gitignore   # optional
+
+      - name: Commit subtree branch
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-      - name: Create subtree branch from mem0-ts
-        run: |
-          git subtree split --prefix=mem0-ts -b temp-subtree
-
-      - name: Push to btree-develop-subtree
-        run: |
+          git checkout --orphan temp-subtree
+          rm -rf *
+          cp -r mem0-ts-dist/* .
+          git add .
+          git commit -m "Export built mem0-ts subtree"
           git push -f origin temp-subtree:btree-develop-subtree
