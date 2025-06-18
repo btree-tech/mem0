@@ -38,10 +38,9 @@ jobs:
       - name: Copy build to root-level temp directory
         run: |
           mkdir mem0-ts-dist
-          cp -r mem0-ts/* mem0-ts-dist/
-          rm -rf mem0-ts-dist/node_modules
-          rm -rf mem0-ts-dist/src
-          rm -f  mem0-ts-dist/.gitignore
+          cp -r mem0-ts/dist mem0-ts-dist/
+          cp -r mem0-ts/package.json mem0-ts-dist/
+          mv mem0-ts-dist ..
 
       - name: Commit subtree branch
         run: |
@@ -50,7 +49,8 @@ jobs:
 
           git checkout --orphan temp-subtree
           rm -rf *
-          cp -r mem0-ts-dist/* .
-          git add .
+          rm -rf .gitignore
+          cp -r ../mem0-ts-dist/* .
+          git add -f .
           git commit -m "Export built mem0-ts subtree"
           git push -f origin temp-subtree:btree-develop-subtree
