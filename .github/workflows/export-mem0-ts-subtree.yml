@@ -16,26 +16,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js
+      - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: 10
+          run_install: false
 
       - name: Install dependencies
         working-directory: mem0-ts
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build the project
         working-directory: mem0-ts
-        run: npm run build
+        run: pnpm run build
 
       - name: Copy build to root-level temp directory
         run: |
           mkdir mem0-ts-dist
           cp -r mem0-ts/* mem0-ts-dist/
-          rm -rf mem0-ts-dist/node_modules  # exclude unnecessary
-          rm -rf mem0-ts-dist/src          # optional: omit source
-          rm -rf mem0-ts-dist/.gitignore   # optional
+          rm -rf mem0-ts-dist/node_modules
+          rm -rf mem0-ts-dist/src
+          rm -f  mem0-ts-dist/.gitignore
 
       - name: Commit subtree branch
         run: |
