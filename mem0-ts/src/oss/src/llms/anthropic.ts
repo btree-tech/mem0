@@ -39,7 +39,11 @@ export class AnthropicLLM implements LLM {
       max_tokens: 4096,
     });
 
-    return response.content[0].text;
+    // FIXME: Build fails on GitHub Actions but passes locally - weirdly.
+    //
+    // Error: src/oss/src/llms/anthropic.ts(42,32): error TS2339: Property 'text' does not exist on type 'ContentBlock'.
+    //   Property 'text' does not exist on type 'ToolUseBlock'.
+    return (response.content[0] as any).text;
   }
 
   async generateChat(messages: Message[]): Promise<LLMResponse> {
