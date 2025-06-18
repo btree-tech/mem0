@@ -41,7 +41,7 @@ import { captureClientEvent } from "../utils/telemetry";
 
 export class Memory {
   private config: MemoryConfig;
-  private customCategories: Map<string, string>
+  private customCategories: Map<string, string>;
   private customPrompt: string | undefined;
   private embedder: Embedder;
   private vectorStore: VectorStore;
@@ -57,9 +57,11 @@ export class Memory {
     // Merge and validate config
     this.config = ConfigManager.mergeConfig(config);
 
-    this.customCategories = new Map<string, string>()
-    for (const name of Object.keys(defaultCategories) as (keyof typeof defaultCategories)[]) {
-      this.customCategories.set(name, defaultCategories[name])
+    this.customCategories = new Map<string, string>();
+    for (const name of Object.keys(
+      defaultCategories,
+    ) as (keyof typeof defaultCategories)[]) {
+      this.customCategories.set(name, defaultCategories[name]);
     }
     this.customPrompt = this.config.customPrompt;
     this.embedder = EmbedderFactory.create(
@@ -334,7 +336,8 @@ export class Memory {
       try {
         switch (action.event) {
           case "ADD": {
-            const categories = metadata.categories || await this.guessCategories(action.text)
+            const categories =
+              metadata.categories || (await this.guessCategories(action.text));
             const memoryId = await this.createMemory(
               action.text,
               newMessageEmbeddings,
@@ -389,15 +392,15 @@ export class Memory {
       categorizationResponseFormat,
     );
     try {
-      const json = JSON.parse(response)
+      const json = JSON.parse(response);
       if (response && json.categories && Array.isArray(json.categories)) {
-        return json.categories as string[]
+        return json.categories as string[];
       } else {
       }
     } catch (e) {
-      console.warn('mem0 guessCategories error', e)
+      console.warn("mem0 guessCategories error", e);
     }
-    return []
+    return [];
   }
 
   async get(memoryId: string): Promise<MemoryItem | null> {
@@ -447,7 +450,14 @@ export class Memory {
       limit: config.limit,
       has_filters: !!config.filters,
     });
-    const { userId, agentId, runId, limit = 100, filters = {}, enableGraph = true } = config;
+    const {
+      userId,
+      agentId,
+      runId,
+      limit = 100,
+      filters = {},
+      enableGraph = true,
+    } = config;
 
     if (userId) filters.userId = userId;
     if (agentId) filters.agentId = agentId;

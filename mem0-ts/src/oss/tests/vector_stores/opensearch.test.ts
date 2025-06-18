@@ -1,7 +1,10 @@
 // __tests__/OpenSearchVectorStore.test.ts
 
 import { OpenSearchVectorStore } from "../../src/vector_stores/open_search";
-import { Client as OpenSearchClient, ClientOptions } from "@opensearch-project/opensearch";
+import {
+  Client as OpenSearchClient,
+  ClientOptions,
+} from "@opensearch-project/opensearch";
 import { SearchFilters, VectorStoreResult } from "../../src/types";
 import dotenv from "dotenv";
 
@@ -49,7 +52,9 @@ describe("OpenSearchVectorStore", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Default: index does not exist
-    (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({ body: false });
+    (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({
+      body: false,
+    });
     db = new OpenSearchVectorStore(config);
   });
 
@@ -57,16 +62,18 @@ describe("OpenSearchVectorStore", () => {
     it("initializes OpenSearch client with correct options", () => {
       expect(OpenSearchClientMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          node: 'http://localhost:9200',
+          node: "http://localhost:9200",
           auth: { username: "test_user", password: "test_pass" },
           ssl: { rejectUnauthorized: false },
-        })
+        }),
       );
     });
 
     it("creates index on initialize when not exists", async () => {
       await db.initialize();
-      expect(mockedClient.indices!.exists).toHaveBeenCalledWith({ index: "test_collection" });
+      expect(mockedClient.indices!.exists).toHaveBeenCalledWith({
+        index: "test_collection",
+      });
       expect(mockedClient.indices!.create).toHaveBeenCalledWith({
         index: "test_collection",
         body: expect.objectContaining({
@@ -75,7 +82,6 @@ describe("OpenSearchVectorStore", () => {
         }),
       });
     });
-
   });
 
   describe("insert", () => {
@@ -102,7 +108,7 @@ describe("OpenSearchVectorStore", () => {
 
     it("throws if ids and vectors length mismatch", async () => {
       await expect(db.insert([[1, 2]], ["only_id"], [])).rejects.toThrow(
-        /Payloads length must match vectors length/
+        /Payloads length must match vectors length/,
       );
     });
   });
@@ -135,9 +141,7 @@ describe("OpenSearchVectorStore", () => {
           },
         },
       });
-      expect(results).toEqual([
-        { id: "x", score: 0.9, payload: { a: 1 } },
-      ]);
+      expect(results).toEqual([{ id: "x", score: 0.9, payload: { a: 1 } }]);
     });
 
     it("applies filters when provided", async () => {
@@ -162,7 +166,10 @@ describe("OpenSearchVectorStore", () => {
         body: { hits: { hits: fakeHits } },
       });
 
-      const filters: SearchFilters = { userId: "user1", categories: ['personal_details', 'technology'] };
+      const filters: SearchFilters = {
+        userId: "user1",
+        categories: ["personal_details", "technology"],
+      };
       await db.search([0, 0, 0, 0], 2, filters);
 
       const call = (mockedClient.search as jest.Mock).mock.lastCall[0].body;
@@ -176,14 +183,18 @@ describe("OpenSearchVectorStore", () => {
       expect(call.query.bool.filter).toContainEqual({
         term: { "payload.categories.keyword": "technology" },
       });
-    });    
+    });
   });
 
   describe("get", () => {
     it("returns document when found", async () => {
-      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({ body: true });
+      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({
+        body: true,
+      });
       (mockedClient.search as jest.Mock).mockResolvedValue({
-        body: { hits: { hits: [{ _source: { id: "id1", payload: { z: 9 } } }] } },
+        body: {
+          hits: { hits: [{ _source: { id: "id1", payload: { z: 9 } } }] },
+        },
       });
 
       const result = await db.get("id1");
@@ -195,7 +206,9 @@ describe("OpenSearchVectorStore", () => {
     });
 
     it("returns null when not found", async () => {
-      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({ body: true });
+      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({
+        body: true,
+      });
       (mockedClient.search as jest.Mock).mockResolvedValue({
         body: { hits: { hits: [] } },
       });
@@ -205,7 +218,9 @@ describe("OpenSearchVectorStore", () => {
     });
 
     it("creates index and returns null if index missing", async () => {
-      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({ body: false });
+      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({
+        body: false,
+      });
       const result = await db.get("something");
       expect(result).toBeNull();
       expect(mockedClient.indices!.create).toHaveBeenCalled();
@@ -257,13 +272,19 @@ describe("OpenSearchVectorStore", () => {
 
   describe("deleteCol", () => {
     it("deletes index when exists", async () => {
-      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({ body: true });
+      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({
+        body: true,
+      });
       await db.deleteCol();
-      expect(mockedClient.indices!.delete).toHaveBeenCalledWith({ index: "test_collection" });
+      expect(mockedClient.indices!.delete).toHaveBeenCalledWith({
+        index: "test_collection",
+      });
     });
 
     it("no-op if index missing", async () => {
-      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({ body: false });
+      (mockedClient.indices!.exists as jest.Mock).mockResolvedValue({
+        body: false,
+      });
       await db.deleteCol();
       expect(mockedClient.indices!.delete).not.toHaveBeenCalled();
     });

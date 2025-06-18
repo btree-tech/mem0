@@ -149,10 +149,9 @@ describe("Memory Class", () => {
 
     it("should get memory history", async () => {
       // Add and update a memory to create history
-      const addResult = (await memory.add(
-        "I like swimming in warm water",
-        { userId },
-      )) as SearchResult;
+      const addResult = (await memory.add("I like swimming in warm water", {
+        userId,
+      })) as SearchResult;
 
       if (!addResult.results?.[0]?.id) {
         throw new Error("Failed to create test memory");
@@ -170,10 +169,9 @@ describe("Memory Class", () => {
 
     it("should delete a memory", async () => {
       // First add a memory
-      const addResult = (await memory.add(
-        "I love to drink vodka in summers",
-        { userId },
-      )) as SearchResult;
+      const addResult = (await memory.add("I love to drink vodka in summers", {
+        userId,
+      })) as SearchResult;
 
       if (!addResult.results?.[0]?.id) {
         throw new Error("Failed to create test memory");
@@ -195,19 +193,23 @@ describe("Memory Class", () => {
 
       const result = (await memory.getAll({ userId })) as SearchResult;
 
-      expect(result.results[0].metadata).toEqual({ categories: ['professional_details', 'technology'] })
+      expect(result.results[0].metadata).toEqual({
+        categories: ["professional_details", "technology"],
+      });
     });
 
     it("should return memories by specified categories", async () => {
       await memory.add("I love programming in Python", { userId });
       await memory.add("I love to drink vodka in summers", { userId });
 
-      const result = (await memory.search('I', { userId, filters: { categories: ['technology']} })) as SearchResult;
+      const result = (await memory.search("I", {
+        userId,
+        filters: { categories: ["technology"] },
+      })) as SearchResult;
 
-      expect(result.results.length).toBe(1)
-      expect(result.results[0].memory).toContain('Python')
+      expect(result.results.length).toBe(1);
+      expect(result.results[0].memory).toContain("Python");
     });
-
   });
 
   describe("Memory with Custom Configuration", () => {
@@ -246,10 +248,9 @@ describe("Memory Class", () => {
     });
 
     it("should work with custom configuration", async () => {
-      const result = (await customMemory.add(
-        "I love programming in Python",
-        { userId },
-      )) as SearchResult;
+      const result = (await customMemory.add("I love programming in Python", {
+        userId,
+      })) as SearchResult;
 
       expect(result).toBeDefined();
       expect(result.results).toBeDefined();
@@ -259,13 +260,16 @@ describe("Memory Class", () => {
 
     it("should perform semantic search with custom embeddings", async () => {
       // Add test memories
-      await customMemory.add("The weather in London is rainy today", { userId });
-      await customMemory.add("The temperature in Paris is 25 degrees", { userId });
+      await customMemory.add("The weather in London is rainy today", {
+        userId,
+      });
+      await customMemory.add("The temperature in Paris is 25 degrees", {
+        userId,
+      });
 
-      const result = (await customMemory.search(
-        "What is the weather like?",
-        { userId },
-      )) as SearchResult;
+      const result = (await customMemory.search("What is the weather like?", {
+        userId,
+      })) as SearchResult;
 
       expect(result).toBeDefined();
       expect(Array.isArray(result.results)).toBe(true);

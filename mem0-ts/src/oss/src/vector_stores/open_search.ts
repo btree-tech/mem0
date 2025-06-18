@@ -1,30 +1,41 @@
-import { ClientOptions, NodeOptions, Client as OpenSearchClient } from "@opensearch-project/opensearch";
-import { AwsSigv4Signer, AwsSigv4SignerOptions } from "@opensearch-project/opensearch/aws";
+import {
+  ClientOptions,
+  NodeOptions,
+  Client as OpenSearchClient,
+} from "@opensearch-project/opensearch";
+import {
+  AwsSigv4Signer,
+  AwsSigv4SignerOptions,
+} from "@opensearch-project/opensearch/aws";
 import { SearchFilters, VectorStoreResult } from "../types";
 import { VectorStore } from "./base";
 import { defaultProvider } from "@aws-sdk/credential-provider-node";
 
-export type OpenSearchConfig = { 
+export type OpenSearchConfig = {
   user?: string;
   password?: string;
   collectionName: string;
   embeddingModelDims?: number;
   verifyCerts?: boolean;
-  awsV4signerOptions?: AwsSigv4SignerOptions
-  otherClientOptions?: ClientOptions
-} & (OpenSearchConfigUsingHost | OpenSearchConfigUsingNode | OpenSearchConfigUsingNodes)
+  awsV4signerOptions?: AwsSigv4SignerOptions;
+  otherClientOptions?: ClientOptions;
+} & (
+  | OpenSearchConfigUsingHost
+  | OpenSearchConfigUsingNode
+  | OpenSearchConfigUsingNodes
+);
 
 type OpenSearchConfigUsingHost = {
   host: string;
   port?: number;
   useSSL?: boolean;
-}
+};
 type OpenSearchConfigUsingNode = {
   node: string | string[] | NodeOptions | NodeOptions[];
-}
+};
 type OpenSearchConfigUsingNodes = {
   nodes: string | string[] | NodeOptions | NodeOptions[];
-}
+};
 
 export class OpenSearchVectorStore implements VectorStore {
   private client: OpenSearchClient;
@@ -34,10 +45,10 @@ export class OpenSearchVectorStore implements VectorStore {
 
   constructor(config: OpenSearchConfig) {
     let node;
-    if ('node' in config) {
-      node = config.node
-    } else if ('nodes' in config) {
-      node = config.nodes
+    if ("node" in config) {
+      node = config.node;
+    } else if ("nodes" in config) {
+      node = config.nodes;
     } else {
       const protocol = config.useSSL ? "https" : "http";
       const port = config.port || 9200;
@@ -47,23 +58,23 @@ export class OpenSearchVectorStore implements VectorStore {
       config.user && config.password
         ? { username: config.user, password: config.password }
         : undefined;
-        
+
     const defaults = {
       maxRetries: 3,
       requestTimeout: 30000,
-    }
-    let awsV4signerOptions = {}
-    if ('awsV4signerOptions' in config) {
+    };
+    let awsV4signerOptions = {};
+    if ("awsV4signerOptions" in config) {
       awsV4signerOptions = AwsSigv4Signer({
-        region: 'ap-northeast-1',
-        service: 'es',  // 'aoss' for OpenSearch Serverless
+        region: "ap-northeast-1",
+        service: "es", // 'aoss' for OpenSearch Serverless
         getCredentials: () => {
           // Any other method to acquire a new Credentials object can be used.
           const credentialsProvider = defaultProvider();
           return credentialsProvider();
         },
-        ...config.awsV4signerOptions
-      })
+        ...config.awsV4signerOptions,
+      });
     }
 
     this.client = new OpenSearchClient({
@@ -74,9 +85,8 @@ export class OpenSearchVectorStore implements VectorStore {
         rejectUnauthorized: config.verifyCerts ?? true,
       },
       ...awsV4signerOptions,
-      ...config.otherClientOptions
+      ...config.otherClientOptions,
     });
-
 
     this.collectionName = config.collectionName;
     this.embeddingModelDims = config.embeddingModelDims || 1536;
@@ -86,7 +96,7 @@ export class OpenSearchVectorStore implements VectorStore {
 
   /** Initialize the OpenSearch index (create if not exist) */
   public async initialize(): Promise<void> {
-    return this.init()
+    return this.init();
   }
 
   public async init(): Promise<void> {
@@ -95,7 +105,11 @@ export class OpenSearchVectorStore implements VectorStore {
 
   /** Create index with k-NN mapping if it doesn't exist */
   private async createCol(name: string, vectorSize: number): Promise<void> {
-    const indexExists = await this.client.indices.exists({ index: name }).catch(() => { return {body: false}})
+    const indexExists = await this.client.indices
+      .exists({ index: name })
+      .catch(() => {
+        return { body: false };
+      });
     if (indexExists.body === false) {
       const indexSettings = {
         settings: { "index.knn": true },
@@ -104,7 +118,11 @@ export class OpenSearchVectorStore implements VectorStore {
             vector_field: {
               type: "knn_vector",
               dimension: vectorSize,
-              method: { engine: "nmslib", name: "hnsw", space_type: "cosinesimil" },
+              method: {
+                engine: "nmslib",
+                name: "hnsw",
+                space_type: "cosinesimil",
+              },
             },
             payload: { type: "object" },
             id: { type: "keyword" },
@@ -129,7 +147,9 @@ export class OpenSearchVectorStore implements VectorStore {
         } catch {
           retryCount += 1;
           if (retryCount === maxRetries) {
-            throw new Error(`Index ${name} creation timed out after ${maxRetries} seconds`);
+            throw new Error(
+              `Index ${name} creation timed out after ${maxRetries} seconds`,
+            );
           }
           await this.sleep(500);
         }
@@ -147,7 +167,7 @@ export class OpenSearchVectorStore implements VectorStore {
   public async insert(
     vectors: number[][],
     ids: string[],
-    payloads: Record<string, any>[]
+    payloads: Record<string, any>[],
   ): Promise<void> {
     if (ids.length !== vectors.length) {
       throw new Error("IDs length must match vectors length");
@@ -172,7 +192,7 @@ export class OpenSearchVectorStore implements VectorStore {
   public async search(
     query: number[],
     limit: number = 5,
-    filters?: SearchFilters
+    filters?: SearchFilters,
   ): Promise<VectorStoreResult[]> {
     const knnQuery = {
       knn: {
@@ -185,7 +205,9 @@ export class OpenSearchVectorStore implements VectorStore {
 
     const filterClauses: any[] = [];
     if (filters) {
-      for (const key of ["userId", "runId", "agentId"] as Array<keyof SearchFilters>) {
+      for (const key of ["userId", "runId", "agentId"] as Array<
+        keyof SearchFilters
+      >) {
         const value = filters[key];
         if (value) {
           filterClauses.push({ term: { [`payload.${key}.keyword`]: value } });
@@ -195,7 +217,9 @@ export class OpenSearchVectorStore implements VectorStore {
         if (filters[arrayKey] && Array.isArray(filters[arrayKey])) {
           for (const value of filters[arrayKey]) {
             if (value) {
-              filterClauses.push({ term: { [`payload.${arrayKey}.keyword`]: value } });
+              filterClauses.push({
+                term: { [`payload.${arrayKey}.keyword`]: value },
+              });
             }
           }
         }
@@ -224,7 +248,9 @@ export class OpenSearchVectorStore implements VectorStore {
 
   public async get(vectorId: string): Promise<VectorStoreResult | null> {
     // Ensure index exists
-    const indexExists = await this.client.indices.exists({ index: this.collectionName });
+    const indexExists = await this.client.indices.exists({
+      index: this.collectionName,
+    });
     if (indexExists.body === false) {
       await this.createCol(this.collectionName, this.embeddingModelDims);
       return null;
@@ -252,7 +278,7 @@ export class OpenSearchVectorStore implements VectorStore {
   public async update(
     vectorId: string,
     vector: number[],
-    payload: Record<string, any>
+    payload: Record<string, any>,
   ): Promise<void> {
     const searchQuery = { query: { term: { id: vectorId } }, size: 1 };
     const response = await this.client.search({
@@ -282,7 +308,10 @@ export class OpenSearchVectorStore implements VectorStore {
           body: { doc },
         });
       } catch (err) {
-        console.error(`mem0 OpenSearchVectorStore Error updating document ${vectorId}:`, err);
+        console.error(
+          `mem0 OpenSearchVectorStore Error updating document ${vectorId}:`,
+          err,
+        );
       }
     }
   }
@@ -304,7 +333,9 @@ export class OpenSearchVectorStore implements VectorStore {
   }
 
   public async deleteCol(): Promise<void> {
-    const indexExists = await this.client.indices.exists({ index: this.collectionName });
+    const indexExists = await this.client.indices.exists({
+      index: this.collectionName,
+    });
     if (indexExists.body) {
       await this.client.indices.delete({ index: this.collectionName });
     }
@@ -312,11 +343,13 @@ export class OpenSearchVectorStore implements VectorStore {
 
   public async list(
     filters?: SearchFilters,
-    limit?: number
+    limit?: number,
   ): Promise<[VectorStoreResult[], number]> {
     const filterClauses: any[] = [];
     if (filters) {
-      for (const key of ["userId", "runId", "agentId"] as Array<keyof SearchFilters>) {
+      for (const key of ["userId", "runId", "agentId"] as Array<
+        keyof SearchFilters
+      >) {
         const value = filters[key];
         if (value) {
           filterClauses.push({ term: { [`payload.${key}.keyword`]: value } });
