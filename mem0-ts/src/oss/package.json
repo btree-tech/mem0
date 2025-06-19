@@ -16,7 +16,7 @@
     "@anthropic-ai/sdk": "^0.54.0",
     "@aws-sdk/credential-provider-node": "^3.830.0",
     "@google/genai": "^0.7.0",
-    "@opensearch-project/opensearch": "^2.13.0",
+    "@opensearch-project/opensearch": "^3.5.1",
     "@qdrant/js-client-rest": "^1.14.1",
     "@types/node": "^20.19.1",
     "@types/pg": "^8.15.4",

@@ -27,11 +27,11 @@ importers:
         specifier: ^1.5.2
         version: 1.7.2(zod@3.25.67)
       '@opensearch-project/opensearch':
-        specifier: ^2.13.0
-        version: 2.13.0
+        specifier: ^3.5.1
+        version: 3.5.1
       '@qdrant/js-client-rest':
         specifier: 1.13.0
-        version: 1.13.0(typescript@5.5.4)
+        version: 1.13.0(typescript@5.8.3)
       '@supabase/supabase-js':
         specifier: ^2.49.1
         version: 2.50.0
@@ -699,9 +699,9 @@ packages:
     engines: {node: '>=10'}
     deprecated: This functionality has been moved to @npmcli/fs
 
-  '@opensearch-project/opensearch@2.13.0':
-    resolution: {integrity: sha512-Bu3jJ7pKzumbMMeefu7/npAWAvFu5W9SlbBow1ulhluqUpqc7QoXe0KidDrMy7Dy3BQrkI6llR3cWL4lQTZOFw==}
-    engines: {node: '>=10', yarn: ^1.22.10}
+  '@opensearch-project/opensearch@3.5.1':
+    resolution: {integrity: sha512-6bf+HcuERzAtHZxrm6phjref54ABse39BpkDie/YO3AUFMCBrb3SK5okKSdT5n3+nDRuEEQLhQCl0RQV3s1qpA==}
+    engines: {node: '>=14', yarn: ^1.22.10}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -3269,11 +3269,6 @@ packages:
     resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
     engines: {node: '>= 0.6'}
 
-  typescript@5.5.4:
-    resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-
   typescript@5.8.3:
     resolution: {integrity: sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ==}
     engines: {node: '>=14.17'}
@@ -4308,7 +4303,7 @@ snapshots:
       rimraf: 3.0.2
     optional: true
 
-  '@opensearch-project/opensearch@2.13.0':
+  '@opensearch-project/opensearch@3.5.1':
     dependencies:
       aws4: 1.13.2
       debug: 4.4.1(supports-color@5.5.0)
@@ -4322,11 +4317,11 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
-  '@qdrant/js-client-rest@1.13.0(typescript@5.5.4)':
+  '@qdrant/js-client-rest@1.13.0(typescript@5.8.3)':
     dependencies:
       '@qdrant/openapi-typescript-fetch': 1.2.6
       '@sevinf/maybe': 0.5.0
-      typescript: 5.5.4
+      typescript: 5.8.3
       undici: 5.28.5
 
   '@qdrant/openapi-typescript-fetch@1.2.6': {}
@@ -7372,8 +7367,6 @@ snapshots:
       media-typer: 1.1.0
       mime-types: 3.0.1
     optional: true
-
-  typescript@5.5.4: {}
 
   typescript@5.8.3: {}
 

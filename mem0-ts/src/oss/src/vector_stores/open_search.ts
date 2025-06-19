@@ -128,7 +128,7 @@ export class OpenSearchVectorStore implements VectorStore {
             id: { type: "keyword" },
           },
         },
-      };
+      } as const;
 
       await this.client.indices.create({ index: name, body: indexSettings });
       console.debug(`mem0 OpenSearchVectorStore Created index ${name}`);
@@ -269,9 +269,9 @@ export class OpenSearchVectorStore implements VectorStore {
 
     const hit = hits[0];
     return {
-      id: hit._source.id,
+      id: hit._source?.id,
       score: 1.0,
-      payload: hit._source.payload ?? {},
+      payload: hit._source?.payload ?? {},
     };
   }
 
@@ -371,7 +371,13 @@ export class OpenSearchVectorStore implements VectorStore {
     });
 
     const hits = response.body.hits.hits;
-    const total = response.body.hits.total?.value ?? hits.length;
+    const total =
+      typeof response.body.hits.total === "number"
+        ? response.body.hits.total
+        : typeof response.body.hits.total === "object" &&
+            response.body.hits.total?.value
+          ? hits.length
+          : 0;
 
     const results: VectorStoreResult[] = hits.map((hit: any) => ({
       id: hit._source.id,
