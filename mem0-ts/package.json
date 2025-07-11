@@ -121,7 +121,7 @@
     "node": ">=18"
   },
   "publishConfig": {
-    "access": "restricted",
+    "access": "public",
     "registry": "https://npm.pkg.github.com"
   },
   "packageManager": "pnpm@10.12.1",
