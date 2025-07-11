@@ -73,6 +73,8 @@ async function captureClientEvent(
   instance: TelemetryInstance,
   additionalData: Record<string, any> = {},
 ) {
+  if (!MEM0_TELEMETRY) return;
+
   if (!instance.telemetryId) {
     console.warn("No telemetry ID found for instance");
     return;
