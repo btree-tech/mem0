@@ -1,6 +1,6 @@
 {
   "name": "@btree-tech/mem0",
-  "version": "2.1.31-b2",
+  "version": "2.1.36-b3",
   "description": "The Memory Layer For Your AI Apps",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -124,8 +124,14 @@
     "access": "public",
     "registry": "https://npm.pkg.github.com"
   },
-  "packageManager": "pnpm@10.12.1",
   "volta": {
     "node": "22.16.0"
+  },
+  "packageManager": "pnpm@10.5.2+sha512.da9dc28cd3ff40d0592188235ab25d3202add8a207afbedc682220e4a0029ffbff4562102b9e6e46b4e3f9e8bd53e6d05de48544b0c57d4b0179e22c76d1199b",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sqlite3"
+    ]
   }
 }

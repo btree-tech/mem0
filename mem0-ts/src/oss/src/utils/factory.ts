@@ -41,6 +41,7 @@ export class EmbedderFactory {
       case "ollama":
         return new OllamaEmbedder(config);
       case "google":
+      case "gemini":
         return new GoogleEmbedder(config);
       case "azure_openai":
         return new AzureOpenAIEmbedder(config);
@@ -66,6 +67,7 @@ export class LLMFactory {
       case "ollama":
         return new OllamaLLM(config);
       case "google":
+      case "gemini":
         return new GoogleLLM(config);
       case "azure_openai":
         return new AzureOpenAILLM(config);
