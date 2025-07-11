@@ -1,6 +1,6 @@
 {
-  "name": "mem0ai",
-  "version": "2.1.31-b1",
+  "name": "@btree-tech/mem0",
+  "version": "2.1.31-b2",
   "description": "The Memory Layer For Your AI Apps",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -121,7 +121,8 @@
     "node": ">=18"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
   },
   "packageManager": "pnpm@10.12.1",
   "volta": {
