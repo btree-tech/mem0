@@ -1,0 +1,436 @@
+import {
+  ClientOptions,
+  NodeOptions,
+  Client as OpenSearchClient,
+} from "@opensearch-project/opensearch";
+import {
+  AwsSigv4Signer,
+  AwsSigv4SignerOptions,
+} from "@opensearch-project/opensearch/aws";
+import { SearchFilters, VectorStoreResult } from "../types";
+import { VectorStore } from "./base";
+import { defaultProvider } from "@aws-sdk/credential-provider-node";
+import { logger } from "../utils/logger";
+
+export type OpenSearchConfig = {
+  user?: string;
+  password?: string;
+  collectionName: string;
+  embeddingModelDims?: number;
+  verifyCerts?: boolean;
+  awsV4signerOptions?: AwsSigv4SignerOptions;
+  otherClientOptions?: ClientOptions;
+} & (
+  | OpenSearchConfigUsingHost
+  | OpenSearchConfigUsingNode
+  | OpenSearchConfigUsingNodes
+);
+
+type OpenSearchConfigUsingHost = {
+  host: string;
+  port?: number;
+  useSSL?: boolean;
+};
+type OpenSearchConfigUsingNode = {
+  node: string | string[] | NodeOptions | NodeOptions[];
+};
+type OpenSearchConfigUsingNodes = {
+  nodes: string | string[] | NodeOptions | NodeOptions[];
+};
+
+export class OpenSearchVectorStore implements VectorStore {
+  private client: OpenSearchClient;
+  private collectionName: string;
+  private embeddingModelDims: number;
+  private spaceType: string = "cosinesimil";
+  private userId: string | null = null;
+
+  constructor(config: OpenSearchConfig) {
+    let node;
+    if ("node" in config) {
+      node = config.node;
+    } else if ("nodes" in config) {
+      node = config.nodes;
+    } else {
+      const protocol = config.useSSL ? "https" : "http";
+      const port = config.port || 9200;
+      node = `${protocol}://${config.host}:${port}`;
+    }
+    const auth =
+      config.user && config.password
+        ? { username: config.user, password: config.password }
+        : undefined;
+
+    const defaults = {
+      maxRetries: 3,
+      requestTimeout: 30000,
+    };
+    let awsV4signerOptions = {};
+    if ("awsV4signerOptions" in config) {
+      awsV4signerOptions = AwsSigv4Signer({
+        region: "ap-northeast-1",
+        service: "es", // 'aoss' for OpenSearch Serverless
+        getCredentials: () => {
+          // Any other method to acquire a new Credentials object can be used.
+          const credentialsProvider = defaultProvider();
+          return credentialsProvider();
+        },
+        ...config.awsV4signerOptions,
+      });
+    }
+
+    this.client = new OpenSearchClient({
+      ...defaults,
+      node,
+      auth,
+      ssl: {
+        rejectUnauthorized: config.verifyCerts ?? true,
+      },
+      ...awsV4signerOptions,
+      ...config.otherClientOptions,
+    });
+
+    this.collectionName = config.collectionName;
+    this.embeddingModelDims = config.embeddingModelDims || 1536;
+  }
+
+  /** Initialize the OpenSearch index (create if not exist) */
+  public async initialize(): Promise<void> {
+    return this.init();
+  }
+
+  public async init(): Promise<void> {
+    await this.createCol(this.collectionName, this.embeddingModelDims);
+  }
+
+  /** Create index with k-NN mapping if it doesn't exist */
+  private async createCol(name: string, vectorSize: number): Promise<void> {
+    const indexExists = await this.client.indices
+      .exists({ index: name })
+      .catch(() => {
+        return { body: false };
+      });
+    if (indexExists.body === false) {
+      // use script score
+      // https://opensearch.org/docs/latest/search-plugins/knn/knn-score-script/#getting-started-with-the-score-script-for-vectors
+      const indexSettings = {
+        settings: {
+          index: {
+            "knn.algo_param": {
+              ef_search: "512",
+            },
+            knn: "false",
+          },
+        },
+        mappings: {
+          dynamic: "false",
+          properties: {
+            vector_field: {
+              type: "knn_vector",
+              dimension: vectorSize,
+            },
+            payload: {
+              type: "object",
+              properties: {
+                userId: {
+                  type: "keyword",
+                },
+                runId: {
+                  type: "keyword",
+                },
+                agentId: {
+                  type: "keyword",
+                },
+                categories: {
+                  type: "keyword",
+                },
+              },
+            },
+            id: {
+              type: "keyword",
+            },
+          },
+        },
+      } as const;
+
+      await this.client.indices.create({ index: name, body: indexSettings });
+      logger.debug(`mem0 OpenSearchVectorStore Created index ${name}`);
+
+      // Wait for index to be searchable
+      const maxRetries = 60;
+      let retryCount = 0;
+      while (retryCount < maxRetries) {
+        try {
+          await this.client.search({
+            index: name,
+            body: { query: { match_all: {} }, size: 1 },
+          });
+          logger.debug(`mem0 OpenSearchVectorStore Index ${name} is ready`);
+          return;
+        } catch {
+          retryCount += 1;
+          if (retryCount === maxRetries) {
+            throw new Error(
+              `Index ${name} creation timed out after ${maxRetries} seconds`,
+            );
+          }
+          await this.sleep(500);
+        }
+      }
+    } else {
+      logger.debug(`mem0 OpenSearchVectorStore Index ${name} already exists`);
+    }
+  }
+
+  /** Helper to pause execution */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  public async insert(
+    vectors: number[][],
+    ids: string[],
+    payloads: Record<string, any>[],
+  ): Promise<void> {
+    if (ids.length !== vectors.length) {
+      throw new Error("IDs length must match vectors length");
+    }
+    if (payloads.length !== vectors.length) {
+      throw new Error("Payloads length must match vectors length");
+    }
+
+    const bodyBulk: any[] = [];
+    for (let i = 0; i < vectors.length; i++) {
+      bodyBulk.push({ index: { _index: this.collectionName } });
+      bodyBulk.push({
+        vector_field: vectors[i],
+        payload: payloads[i],
+        id: ids[i],
+      });
+    }
+
+    await this.client.bulk({ body: bodyBulk, refresh: true });
+  }
+
+  public async search(
+    query: number[],
+    limit: number = 5,
+    filters?: SearchFilters,
+  ): Promise<VectorStoreResult[]> {
+    const filterClauses: any[] = [];
+    if (filters) {
+      for (const key of ["userId", "runId", "agentId"] as Array<
+        keyof SearchFilters
+      >) {
+        const value = filters[key];
+        if (value) {
+          filterClauses.push({ term: { [`payload.${key}`]: value } });
+        }
+      }
+      for (const arrayKey of ["categories"] as Array<keyof SearchFilters>) {
+        if (filters[arrayKey] && Array.isArray(filters[arrayKey])) {
+          for (const value of filters[arrayKey]) {
+            if (value) {
+              filterClauses.push({
+                term: { [`payload.${arrayKey}`]: value },
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const queryBody: any = {
+      size: limit * 2,
+      query: {
+        script_score: {
+          query: {
+            bool: {
+              filter: {
+                bool: {
+                  must: filterClauses,
+                },
+              },
+            },
+          },
+          script: {
+            lang: "knn",
+            source: "knn_score",
+            params: {
+              field: "vector_field",
+              query_value: query,
+              space_type: this.spaceType,
+            },
+          },
+        },
+      },
+    };
+
+    const response = await this.client.search({
+      index: this.collectionName,
+      body: queryBody,
+    });
+
+    // queryBody.query.script_score.script.params.query_value = '**'
+    // logger.debug(JSON.stringify(queryBody))
+
+    const hits = response.body.hits.hits;
+    return hits.map((hit: any) => ({
+      id: hit._source.id,
+      score: hit._score,
+      payload: hit._source.payload ?? {},
+    }));
+  }
+
+  public async get(vectorId: string): Promise<VectorStoreResult | null> {
+    // Ensure index exists
+    const indexExists = await this.client.indices.exists({
+      index: this.collectionName,
+    });
+    if (indexExists.body === false) {
+      await this.createCol(this.collectionName, this.embeddingModelDims);
+      return null;
+    }
+
+    const searchQuery = { query: { term: { id: vectorId } }, size: 1 };
+    const response = await this.client.search({
+      index: this.collectionName,
+      body: searchQuery,
+    });
+
+    const hits = response.body.hits.hits;
+    if (hits.length === 0) {
+      return null;
+    }
+
+    const hit = hits[0];
+    return {
+      id: hit._source?.id,
+      score: 1.0,
+      payload: hit._source?.payload ?? {},
+    };
+  }
+
+  // Note: OpenSearch update API is asynchronous; updating may take time.
+  public async update(
+    vectorId: string,
+    vector: number[],
+    payload: Record<string, any>,
+  ): Promise<void> {
+    const searchQuery = { query: { term: { id: vectorId } }, size: 1 };
+    const response = await this.client.search({
+      index: this.collectionName,
+      body: searchQuery,
+    });
+
+    const hits = response.body.hits.hits;
+    if (hits.length === 0) {
+      return;
+    }
+
+    const opensearchId = hits[0]._id;
+    const doc: any = {};
+    if (vector) {
+      doc.vector_field = vector;
+    }
+    if (payload) {
+      doc.payload = payload;
+    }
+
+    if (Object.keys(doc).length > 0) {
+      try {
+        await this.client.update({
+          index: this.collectionName,
+          id: opensearchId,
+          body: { doc },
+        });
+      } catch (err) {
+        console.error(
+          `mem0 OpenSearchVectorStore Error updating document ${vectorId}:`,
+          err,
+        );
+      }
+    }
+  }
+
+  // Note: OpenSearch delete API is asynchronous; deletion may take time.
+  public async delete(vectorId: string): Promise<void> {
+    const searchQuery = { query: { term: { id: vectorId } }, size: 1 };
+    const response = await this.client.search({
+      index: this.collectionName,
+      body: searchQuery,
+    });
+
+    const hits = response.body.hits.hits;
+    if (hits.length === 0) {
+      return;
+    }
+
+    const opensearchId = hits[0]._id;
+    await this.client.delete({ index: this.collectionName, id: opensearchId });
+  }
+
+  public async deleteCol(): Promise<void> {
+    const indexExists = await this.client.indices.exists({
+      index: this.collectionName,
+    });
+    if (indexExists.body) {
+      await this.client.indices.delete({ index: this.collectionName });
+    }
+  }
+
+  public async list(
+    filters?: SearchFilters,
+    limit?: number,
+  ): Promise<[VectorStoreResult[], number]> {
+    const filterClauses: any[] = [];
+    if (filters) {
+      for (const key of ["userId", "runId", "agentId"] as Array<
+        keyof SearchFilters
+      >) {
+        const value = filters[key];
+        if (value) {
+          filterClauses.push({ term: { [`payload.${key}`]: value } });
+        }
+      }
+    }
+
+    const queryBody: any = filterClauses.length
+      ? { query: { bool: { filter: filterClauses } } }
+      : { query: { match_all: {} } };
+
+    if (limit) {
+      queryBody.size = limit;
+    }
+
+    const response = await this.client.search({
+      index: this.collectionName,
+      body: queryBody,
+    });
+
+    const hits = response.body.hits.hits;
+    const total =
+      typeof response.body.hits.total === "number"
+        ? response.body.hits.total
+        : typeof response.body.hits.total === "object" &&
+            response.body.hits.total?.value
+          ? hits.length
+          : 0;
+
+    const results: VectorStoreResult[] = hits.map((hit: any) => ({
+      id: hit._source.id,
+      score: 1.0,
+      payload: hit._source.payload ?? {},
+    }));
+
+    return [results, total];
+  }
+
+  public async getUserId(): Promise<string> {
+    return this.userId!;
+  }
+
+  public async setUserId(userId: string): Promise<void> {
+    this.userId = userId;
+  }
+}

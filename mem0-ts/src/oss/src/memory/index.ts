@@ -15,6 +15,9 @@ import {
   HistoryManagerFactory,
 } from "../utils/factory";
 import {
+  buildCategorizationInput,
+  categorizationResponseFormat,
+  defaultCategories,
   getFactRetrievalMessages,
   getUpdateMemoryMessages,
   parseMessages,
@@ -38,6 +41,7 @@ import { captureClientEvent } from "../utils/telemetry";
 
 export class Memory {
   private config: MemoryConfig;
+  private customCategories: Map<string, string>;
   private customPrompt: string | undefined;
   private embedder: Embedder;
   private vectorStore: VectorStore;
@@ -53,6 +57,12 @@ export class Memory {
     // Merge and validate config
     this.config = ConfigManager.mergeConfig(config);
 
+    this.customCategories = new Map<string, string>();
+    for (const name of Object.keys(
+      defaultCategories,
+    ) as (keyof typeof defaultCategories)[]) {
+      this.customCategories.set(name, defaultCategories[name]);
+    }
     this.customPrompt = this.config.customPrompt;
     this.embedder = EmbedderFactory.create(
       this.config.embedder.provider,
@@ -94,6 +104,11 @@ export class Memory {
     if (this.enableGraph && this.config.graphStore) {
       this.graphMemory = new MemoryGraph(this.config);
     }
+  }
+
+  // Note: Split async initialization function from constructor
+  public async initialize() {
+    await this.vectorStore.initialize().catch(console.error);
 
     // Initialize telemetry if vector store is initialized
     this._initializeTelemetry();
@@ -169,6 +184,7 @@ export class Memory {
       metadata = {},
       filters = {},
       infer = true,
+      enableGraph = true,
     } = config;
 
     if (userId) filters.userId = metadata.userId = userId;
@@ -197,7 +213,7 @@ export class Memory {
 
     // Add to graph store if available
     let graphResult;
-    if (this.graphMemory) {
+    if (this.graphMemory && enableGraph) {
       try {
         graphResult = await this.graphMemory.add(
           final_parsedMessages.map((m) => m.content).join("\n"),
@@ -325,10 +341,12 @@ export class Memory {
       try {
         switch (action.event) {
           case "ADD": {
+            const categories =
+              metadata.categories || (await this.guessCategories(action.text));
             const memoryId = await this.createMemory(
               action.text,
               newMessageEmbeddings,
-              metadata,
+              { categories, ...metadata },
             );
             results.push({
               id: memoryId,
@@ -372,6 +390,22 @@ export class Memory {
     }
 
     return results;
+  }
+  async guessCategories(text: string): Promise<string[]> {
+    const response = await this.llm.generateResponse(
+      buildCategorizationInput(text, this.customCategories),
+      categorizationResponseFormat,
+    );
+    try {
+      const json = JSON.parse(response);
+      if (response && json.categories && Array.isArray(json.categories)) {
+        return json.categories as string[];
+      } else {
+      }
+    } catch (e) {
+      console.warn("mem0 guessCategories error", e);
+    }
+    return [];
   }
 
   async get(memoryId: string): Promise<MemoryItem | null> {
@@ -421,7 +455,14 @@ export class Memory {
       limit: config.limit,
       has_filters: !!config.filters,
     });
-    const { userId, agentId, runId, limit = 100, filters = {} } = config;
+    const {
+      userId,
+      agentId,
+      runId,
+      limit = 100,
+      filters = {},
+      enableGraph = true,
+    } = config;
 
     if (userId) filters.userId = userId;
     if (agentId) filters.agentId = agentId;
@@ -443,7 +484,7 @@ export class Memory {
 
     // Search graph store if available
     let graphResults;
-    if (this.graphMemory) {
+    if (this.graphMemory && enableGraph) {
       try {
         graphResults = await this.graphMemory.search(query, filters);
       } catch (error) {
@@ -568,9 +609,17 @@ export class Memory {
     );
     // Re-init DB if needed (though db.reset() likely handles its state)
     // Re-init Graph if needed
+    this.graphMemory?.close();
+
+    // Initialize graph memory if configured
+    if (this.enableGraph && this.config.graphStore) {
+      this.graphMemory = new MemoryGraph(this.config);
+    }
 
     // Re-initialize telemetry
     this._initializeTelemetry();
+
+    await this.vectorStore.initialize();
   }
 
   async getAll(config: GetAllMemoryOptions): Promise<SearchResult> {

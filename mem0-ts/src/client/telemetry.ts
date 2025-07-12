@@ -1,7 +1,7 @@
 // @ts-nocheck
 import type { TelemetryClient, TelemetryOptions } from "./telemetry.types";
 
-let version = "2.1.26";
+let version = "2.1.36";
 
 // Safely check for process.env in different environments
 let MEM0_TELEMETRY = true;
@@ -75,6 +75,8 @@ async function captureClientEvent(
   instance: any,
   additionalData = {},
 ) {
+  if (!MEM0_TELEMETRY) return;
+
   if (!instance.telemetryId) {
     console.warn("No telemetry ID found for instance");
     return;

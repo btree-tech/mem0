@@ -4,7 +4,7 @@ import type {
   TelemetryEventData,
 } from "./telemetry.types";
 
-let version = "2.1.26";
+let version = "2.1.34";
 
 // Safely check for process.env in different environments
 let MEM0_TELEMETRY = true;
@@ -73,6 +73,8 @@ async function captureClientEvent(
   instance: TelemetryInstance,
   additionalData: Record<string, any> = {},
 ) {
+  if (!MEM0_TELEMETRY) return;
+
   if (!instance.telemetryId) {
     console.warn("No telemetry ID found for instance");
     return;

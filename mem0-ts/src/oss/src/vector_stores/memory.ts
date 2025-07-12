@@ -21,7 +21,6 @@ export class MemoryVectorStore implements VectorStore {
       this.dbPath = config.dbPath;
     }
     this.db = new sqlite3.Database(this.dbPath);
-    this.init().catch(console.error);
   }
 
   private async init() {
@@ -82,8 +81,10 @@ export class MemoryVectorStore implements VectorStore {
 
   private filterVector(vector: MemoryVector, filters?: SearchFilters): boolean {
     if (!filters) return true;
-    return Object.entries(filters).every(
-      ([key, value]) => vector.payload[key] === value,
+    return Object.entries(filters).every(([key, value]) =>
+      Array.isArray(value) && Array.isArray(vector.payload[key])
+        ? value.every((item) => vector.payload[key].includes(item))
+        : vector.payload[key] === value,
     );
   }
 

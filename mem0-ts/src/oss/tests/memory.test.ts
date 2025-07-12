@@ -1,13 +1,71 @@
 /// <reference types="jest" />
 import { Memory } from "../src";
-import { MemoryItem, SearchResult } from "../src/types";
+import { MemoryConfig, MemoryItem, SearchResult } from "../src/types";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 jest.setTimeout(30000); // Increase timeout to 30 seconds
 
-describe("Memory Class", () => {
+describe.each([
+  [
+    "Memory",
+    {
+      vectorStore: {
+        provider: "memory",
+        config: {
+          collectionName: "test-memories",
+          dimension: 1536,
+        },
+      },
+    },
+  ],
+  [
+    "OpenSearch",
+    {
+      vectorStore: {
+        provider: "opensearch",
+        config: {
+          host: "localhost",
+          port: 9200,
+          collectionName: "mem0_test_memories",
+          embeddingModelDims: 1536,
+        },
+      },
+    },
+  ],
+  [
+    "OpenSearch with graph",
+    {
+      vectorStore: {
+        provider: "opensearch",
+        config: {
+          host: "localhost",
+          port: 9200,
+          collectionName: "mem0_test_memories",
+          embeddingModelDims: 1536,
+        },
+      },
+      enableGraph: true,
+      graphStore: {
+        provider: "neo4j",
+        config: {
+          url: "neo4j://localhost:7687",
+          username: "neo4j",
+          password: "neo4j",
+        },
+        llm: {
+          provider: "openai",
+          config: {
+            model: "gpt-4o-mini",
+            temperature: 0.0,
+            apiKey: process.env.OPENAI_API_KEY,
+          },
+        },
+      },
+    },
+  ],
+])("%s", (name: string, partialMemoryConfig: any) => {
   let memory: Memory;
   const userId =
     Math.random().toString(36).substring(2, 15) +
@@ -24,21 +82,15 @@ describe("Memory Class", () => {
           model: "text-embedding-3-small",
         },
       },
-      vectorStore: {
-        provider: "memory",
-        config: {
-          collectionName: "test-memories",
-          dimension: 1536,
-        },
-      },
       llm: {
         provider: "openai",
         config: {
           apiKey: process.env.OPENAI_API_KEY || "",
-          model: "gpt-4-turbo-preview",
+          model: "gpt-4o-mini",
         },
       },
       historyDbPath: ":memory:", // Use in-memory SQLite for tests
+      ...partialMemoryConfig,
     });
     // Reset all memories before each test
     await memory.reset();
@@ -53,7 +105,7 @@ describe("Memory Class", () => {
     it("should add a single memory", async () => {
       const result = (await memory.add(
         "Hi, my name is John and I am a software engineer.",
-        userId,
+        { userId },
       )) as SearchResult;
 
       expect(result).toBeDefined();
@@ -69,7 +121,7 @@ describe("Memory Class", () => {
         { role: "assistant", content: "I love Paris, it is my favorite city." },
       ];
 
-      const result = (await memory.add(messages, userId)) as SearchResult;
+      const result = (await memory.add(messages, { userId })) as SearchResult;
 
       expect(result).toBeDefined();
       expect(result.results).toBeDefined();
@@ -81,7 +133,7 @@ describe("Memory Class", () => {
       // First add a memory
       const addResult = (await memory.add(
         "I am a big advocate of using AI to make the world a better place",
-        userId,
+        { userId },
       )) as SearchResult;
 
       if (!addResult.results?.[0]?.id) {
@@ -101,7 +153,7 @@ describe("Memory Class", () => {
       // First add a memory
       const addResult = (await memory.add(
         "I love speaking foreign languages especially Spanish",
-        userId,
+        { userId },
       )) as SearchResult;
 
       if (!addResult.results?.[0]?.id) {
@@ -115,6 +167,11 @@ describe("Memory Class", () => {
       expect(result).toBeDefined();
       expect(result.message).toBe("Memory updated successfully!");
 
+      // Wait due to asynchronous update in OpenSearch
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1 * 1000);
+      });
+
       // Verify the update by getting the memory
       const updatedMemory = (await memory.get(memoryId)) as MemoryItem;
       expect(updatedMemory.memory).toBe(updatedContent);
@@ -122,10 +179,10 @@ describe("Memory Class", () => {
 
     it("should get all memories for a user", async () => {
       // Add a few memories
-      await memory.add("I love visiting new places in the winters", userId);
-      await memory.add("I like to rule the world", userId);
+      await memory.add("I love visiting new places in the winters", { userId });
+      await memory.add("I like to rule the world", { userId });
 
-      const result = (await memory.getAll(userId)) as SearchResult;
+      const result = (await memory.getAll({ userId })) as SearchResult;
 
       expect(result).toBeDefined();
       expect(Array.isArray(result.results)).toBe(true);
@@ -134,12 +191,12 @@ describe("Memory Class", () => {
 
     it("should search memories", async () => {
       // Add some test memories
-      await memory.add("I love programming in Python", userId);
-      await memory.add("JavaScript is my favorite language", userId);
+      await memory.add("I love programming in Python", { userId });
+      await memory.add("JavaScript is my favorite language", { userId });
 
       const result = (await memory.search(
         "What programming languages do I know?",
-        userId,
+        { userId },
       )) as SearchResult;
 
       expect(result).toBeDefined();
@@ -149,10 +206,9 @@ describe("Memory Class", () => {
 
     it("should get memory history", async () => {
       // Add and update a memory to create history
-      const addResult = (await memory.add(
-        "I like swimming in warm water",
+      const addResult = (await memory.add("I like swimming in warm water", {
         userId,
-      )) as SearchResult;
+      })) as SearchResult;
 
       if (!addResult.results?.[0]?.id) {
         throw new Error("Failed to create test memory");
@@ -170,10 +226,9 @@ describe("Memory Class", () => {
 
     it("should delete a memory", async () => {
       // First add a memory
-      const addResult = (await memory.add(
-        "I love to drink vodka in summers",
+      const addResult = (await memory.add("I love to drink vodka in summers", {
         userId,
-      )) as SearchResult;
+      })) as SearchResult;
 
       if (!addResult.results?.[0]?.id) {
         throw new Error("Failed to create test memory");
@@ -184,73 +239,98 @@ describe("Memory Class", () => {
       // Delete the memory
       await memory.delete(memoryId);
 
+      // Wait due to asynchronous delete in OpenSearch
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1 * 1000);
+      });
+
       // Try to get the deleted memory - should throw or return null
       const result = await memory.get(memoryId);
       expect(result).toBeNull();
     });
-  });
 
-  describe("Memory with Custom Configuration", () => {
-    let customMemory: Memory;
+    it("should set categories", async () => {
+      await memory.add("I love programming in Python", { userId });
+      await memory.add("JavaScript is my favorite language", { userId });
 
-    beforeEach(() => {
-      customMemory = new Memory({
-        version: "v1.1",
-        embedder: {
-          provider: "openai",
-          config: {
-            apiKey: process.env.OPENAI_API_KEY || "",
-            model: "text-embedding-3-small",
-          },
-        },
-        vectorStore: {
-          provider: "memory",
-          config: {
-            collectionName: "test-memories",
-            dimension: 1536,
-          },
-        },
-        llm: {
-          provider: "openai",
-          config: {
-            apiKey: process.env.OPENAI_API_KEY || "",
-            model: "gpt-4-turbo-preview",
-          },
-        },
-        historyDbPath: ":memory:", // Use in-memory SQLite for tests
-      });
+      const result = (await memory.getAll({ userId })) as SearchResult;
+
+      expect(result.results[0].metadata?.categories).toContain("technology");
     });
 
-    afterEach(async () => {
-      await customMemory.reset();
-    });
+    it("should return memories by specified categories", async () => {
+      await memory.add("I love programming in Python", { userId });
+      await memory.add("I love to drink vodka in summers", { userId });
 
-    it("should work with custom configuration", async () => {
-      const result = (await customMemory.add(
-        "I love programming in Python",
+      const result = (await memory.search("I", {
         userId,
-      )) as SearchResult;
+        filters: { categories: ["technology"] },
+      })) as SearchResult;
 
-      expect(result).toBeDefined();
-      expect(result.results).toBeDefined();
-      expect(Array.isArray(result.results)).toBe(true);
-      expect(result.results.length).toBeGreaterThan(0);
+      expect(result.results.length).toBe(1);
+      expect(result.results[0].memory).toContain("Python");
     });
 
     it("should perform semantic search with custom embeddings", async () => {
       // Add test memories
-      await customMemory.add("The weather in London is rainy today", userId);
-      await customMemory.add("The temperature in Paris is 25 degrees", userId);
-
-      const result = (await customMemory.search(
-        "What is the weather like?",
+      await memory.add("The weather in London is rainy today", {
         userId,
-      )) as SearchResult;
+      });
+      await memory.add("The temperature in Paris is 25 degrees", {
+        userId,
+      });
+
+      const result = (await memory.search("What is the weather like?", {
+        userId,
+      })) as SearchResult;
 
       expect(result).toBeDefined();
       expect(Array.isArray(result.results)).toBe(true);
       // Results should be ordered by relevance
       expect(result.results.length).toBeGreaterThan(0);
+    });
+
+    it("should search memories with runId", async () => {
+      (await memory.add("Hi, my name is John and I am a software engineer.", {
+        userId,
+      })) as SearchResult;
+
+      const runId1 =
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
+      (await memory.add("I drink beer everyday.", {
+        userId,
+        runId: runId1,
+      })) as SearchResult;
+
+      const runId2 =
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
+      (await memory.add("I drink coffee everyday.", {
+        userId,
+        runId: runId2,
+      })) as SearchResult;
+
+      {
+        const result = (await memory.search("What is the best drink for me?", {
+          userId,
+          runId: runId1,
+        })) as SearchResult;
+
+        expect(result).toBeDefined();
+        expect(Array.isArray(result.results)).toBe(true);
+        expect(result.results[0].memory).toContain("beer");
+      }
+      {
+        const result = (await memory.search("What is the best drink for me?", {
+          userId,
+          runId: runId2,
+        })) as SearchResult;
+
+        expect(result).toBeDefined();
+        expect(Array.isArray(result.results)).toBe(true);
+        expect(result.results[0].memory).toContain("coffee");
+      }
     });
   });
 });
