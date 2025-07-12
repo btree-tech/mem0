@@ -138,6 +138,9 @@ export class OpenSearchVectorStore implements VectorStore {
                 runId: {
                   type: 'keyword',
                 },
+                agentId: {
+                  type: 'keyword',
+                },
                 categories: {
                   type: 'keyword',
                 },

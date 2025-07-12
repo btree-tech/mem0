@@ -77,8 +77,15 @@ describe("OpenSearchVectorStore", () => {
       expect(mockedClient.indices!.create).toHaveBeenCalledWith({
         index: "test_collection",
         body: expect.objectContaining({
-          settings: { "index.knn": true },
-          mappings: { properties: expect.any(Object) },
+          settings: { 
+            index: {
+              'knn.algo_param': {
+                'ef_search': '512'
+              },
+              knn: 'false'
+            }
+          },
+          mappings: { dynamic: 'false', properties: expect.any(Object) },
         }),
       });
     });
@@ -132,12 +139,26 @@ describe("OpenSearchVectorStore", () => {
         body: {
           size: 6,
           query: {
-            knn: {
-              vector_field: {
-                vector: [0.1, 0.2, 0.3, 0.4],
-                k: 6,
+            script_score: {
+              query: {
+                bool: {
+                  filter: {
+                    bool: {
+                      must: []
+                    }
+                  }
+                }
               },
-            },
+              script: {
+                lang: "knn",
+                source: "knn_score",
+                params: {
+                  field: "vector_field",
+                  query_value: [0.1, 0.2, 0.3, 0.4],
+                  space_type: 'cosinesimil',
+                }                
+              }
+            }
           },
         },
       });
@@ -154,9 +175,9 @@ describe("OpenSearchVectorStore", () => {
       await db.search([0, 0, 0, 0], 2, filters);
 
       const call = (mockedClient.search as jest.Mock).mock.lastCall[0].body;
-      expect(call.query).toHaveProperty("bool");
-      expect(call.query.bool.filter).toContainEqual({
-        term: { "payload.userId.keyword": "user1" },
+      expect(call.query).toHaveProperty("script_score");
+      expect(call.query.script_score.query.bool.filter.bool.must).toContainEqual({
+        term: { "payload.userId": "user1" },
       });
     });
 
@@ -173,15 +194,15 @@ describe("OpenSearchVectorStore", () => {
       await db.search([0, 0, 0, 0], 2, filters);
 
       const call = (mockedClient.search as jest.Mock).mock.lastCall[0].body;
-      expect(call.query).toHaveProperty("bool");
-      expect(call.query.bool.filter).toContainEqual({
-        term: { "payload.userId.keyword": "user1" },
+      expect(call.query).toHaveProperty("script_score");
+      expect(call.query.script_score.query.bool.filter.bool.must).toContainEqual({
+        term: { "payload.userId": "user1" },
       });
-      expect(call.query.bool.filter).toContainEqual({
-        term: { "payload.categories.keyword": "personal_details" },
+      expect(call.query.script_score.query.bool.filter.bool.must).toContainEqual({
+        term: { "payload.categories": "personal_details" },
       });
-      expect(call.query.bool.filter).toContainEqual({
-        term: { "payload.categories.keyword": "technology" },
+      expect(call.query.script_score.query.bool.filter.bool.must).toContainEqual({
+        term: { "payload.categories": "technology" },
       });
     });
   });
@@ -312,7 +333,7 @@ describe("OpenSearchVectorStore", () => {
       await db.list({ agentId: "agentX" }, 1);
       const body = (mockedClient.search as jest.Mock).mock.lastCall[0].body;
       expect(body.query.bool.filter).toContainEqual({
-        term: { "payload.agentId.keyword": "agentX" },
+        term: { "payload.agentId": "agentX" },
       });
       expect(body.size).toBe(1);
     });
