@@ -672,4 +672,7 @@ export class MemoryGraph {
       await session.close();
     }
   }
+  async close() {
+    return this.graph.close()
+  }
 }

@@ -21,7 +21,6 @@ export class MemoryVectorStore implements VectorStore {
       this.dbPath = config.dbPath;
     }
     this.db = new sqlite3.Database(this.dbPath);
-    this.init().catch(console.error);
   }
 
   private async init() {

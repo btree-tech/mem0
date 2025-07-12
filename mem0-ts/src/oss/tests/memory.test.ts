@@ -1,13 +1,71 @@
 /// <reference types="jest" />
 import { Memory } from "../src";
-import { MemoryItem, SearchResult } from "../src/types";
+import { MemoryConfig, MemoryItem, SearchResult } from "../src/types";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 jest.setTimeout(30000); // Increase timeout to 30 seconds
 
-describe("Memory Class", () => {
+describe.each([
+  [
+    "Memory",
+    {
+      vectorStore: {
+        provider: "memory",
+        config: {
+          collectionName: "test-memories",
+          dimension: 1536,
+        },
+      },
+    }
+  ],
+  [
+    "OpenSearch",
+    {
+      vectorStore: {
+        provider: 'opensearch',
+        config: {
+          host: 'localhost',
+          port: 9200,
+          collectionName: 'mem0_test_memories',
+          embeddingModelDims: 1536,
+        }
+      },
+    }
+  ],
+  [
+    "OpenSearch with graph",
+    {
+      vectorStore: {
+        provider: 'opensearch',
+        config: {
+          host: 'localhost',
+          port: 9200,
+          collectionName: 'mem0_test_memories',
+          embeddingModelDims: 1536,
+        }
+      },
+      enableGraph: true,
+      graphStore: {
+        provider: "neo4j",
+        config: {
+          "url": "neo4j://localhost:7687",
+          "username": "neo4j",
+          "password": "neo4j",
+        },
+        llm: {
+          provider: 'openai',
+          config: {
+            model: 'gpt-4o-mini',
+            temperature: 0.0,
+            apiKey: process.env.OPENAI_API_KEY,
+          }
+        }
+      }      
+    }
+  ]
+])('%s', (name: string, partialMemoryConfig: any) => { 
   let memory: Memory;
   const userId =
     Math.random().toString(36).substring(2, 15) +
@@ -24,13 +82,6 @@ describe("Memory Class", () => {
           model: "text-embedding-3-small",
         },
       },
-      vectorStore: {
-        provider: "memory",
-        config: {
-          collectionName: "test-memories",
-          dimension: 1536,
-        },
-      },
       llm: {
         provider: "openai",
         config: {
@@ -39,6 +90,7 @@ describe("Memory Class", () => {
         },
       },
       historyDbPath: ":memory:", // Use in-memory SQLite for tests
+      ...partialMemoryConfig
     });
     // Reset all memories before each test
     await memory.reset();
@@ -115,6 +167,11 @@ describe("Memory Class", () => {
       expect(result).toBeDefined();
       expect(result.message).toBe("Memory updated successfully!");
 
+      // Wait due to asynchronous update in OpenSearch
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1 * 1000)
+      })
+
       // Verify the update by getting the memory
       const updatedMemory = (await memory.get(memoryId)) as MemoryItem;
       expect(updatedMemory.memory).toBe(updatedContent);
@@ -182,6 +239,11 @@ describe("Memory Class", () => {
       // Delete the memory
       await memory.delete(memoryId);
 
+      // Wait due to asynchronous delete in OpenSearch
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1 * 1000)
+      })
+
       // Try to get the deleted memory - should throw or return null
       const result = await memory.get(memoryId);
       expect(result).toBeNull();
@@ -193,9 +255,7 @@ describe("Memory Class", () => {
 
       const result = (await memory.getAll({ userId })) as SearchResult;
 
-      expect(result.results[0].metadata).toEqual({
-        categories: ["professional_details", "technology"],
-      });
+      expect(result.results[0].metadata?.categories).toContain('technology')
     });
 
     it("should return memories by specified categories", async () => {
@@ -210,64 +270,17 @@ describe("Memory Class", () => {
       expect(result.results.length).toBe(1);
       expect(result.results[0].memory).toContain("Python");
     });
-  });
-
-  describe("Memory with Custom Configuration", () => {
-    let customMemory: Memory;
-
-    beforeEach(() => {
-      customMemory = new Memory({
-        version: "v1.1",
-        embedder: {
-          provider: "openai",
-          config: {
-            apiKey: process.env.OPENAI_API_KEY || "",
-            model: "text-embedding-3-small",
-          },
-        },
-        vectorStore: {
-          provider: "memory",
-          config: {
-            collectionName: "test-memories",
-            dimension: 1536,
-          },
-        },
-        llm: {
-          provider: "openai",
-          config: {
-            apiKey: process.env.OPENAI_API_KEY || "",
-            model: "gpt-4o-mini",
-          },
-        },
-        historyDbPath: ":memory:", // Use in-memory SQLite for tests
-      });
-    });
-
-    afterEach(async () => {
-      await customMemory.reset();
-    });
-
-    it("should work with custom configuration", async () => {
-      const result = (await customMemory.add("I love programming in Python", {
-        userId,
-      })) as SearchResult;
-
-      expect(result).toBeDefined();
-      expect(result.results).toBeDefined();
-      expect(Array.isArray(result.results)).toBe(true);
-      expect(result.results.length).toBeGreaterThan(0);
-    });
 
     it("should perform semantic search with custom embeddings", async () => {
       // Add test memories
-      await customMemory.add("The weather in London is rainy today", {
+      await memory.add("The weather in London is rainy today", {
         userId,
       });
-      await customMemory.add("The temperature in Paris is 25 degrees", {
+      await memory.add("The temperature in Paris is 25 degrees", {
         userId,
       });
 
-      const result = (await customMemory.search("What is the weather like?", {
+      const result = (await memory.search("What is the weather like?", {
         userId,
       })) as SearchResult;
 

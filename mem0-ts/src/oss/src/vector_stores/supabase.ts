@@ -92,11 +92,6 @@ export class SupabaseDB implements VectorStore {
     this.tableName = config.tableName;
     this.embeddingColumnName = config.embeddingColumnName || "embedding";
     this.metadataColumnName = config.metadataColumnName || "metadata";
-
-    this.initialize().catch((err) => {
-      console.error("Failed to initialize Supabase:", err);
-      throw err;
-    });
   }
 
   async initialize(): Promise<void> {

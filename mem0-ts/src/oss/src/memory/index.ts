@@ -104,6 +104,11 @@ export class Memory {
     if (this.enableGraph && this.config.graphStore) {
       this.graphMemory = new MemoryGraph(this.config);
     }
+  }
+
+  // Note: Split async initialization function from constructor
+  public async initialize() {
+    await this.vectorStore.initialize().catch(console.error);
 
     // Initialize telemetry if vector store is initialized
     this._initializeTelemetry();
@@ -604,9 +609,17 @@ export class Memory {
     );
     // Re-init DB if needed (though db.reset() likely handles its state)
     // Re-init Graph if needed
+    this.graphMemory?.close()
+
+    // Initialize graph memory if configured
+    if (this.enableGraph && this.config.graphStore) {
+      this.graphMemory = new MemoryGraph(this.config);
+    }
 
     // Re-initialize telemetry
     this._initializeTelemetry();
+
+    await this.vectorStore.initialize();
   }
 
   async getAll(config: GetAllMemoryOptions): Promise<SearchResult> {

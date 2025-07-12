@@ -65,7 +65,6 @@ export class Qdrant implements VectorStore {
 
     this.collectionName = config.collectionName;
     this.dimension = config.dimension || 1536; // Default OpenAI dimension
-    this.initialize().catch(console.error);
   }
 
   private createFilter(filters?: SearchFilters): QdrantFilter | undefined {

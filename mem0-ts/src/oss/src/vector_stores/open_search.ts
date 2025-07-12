@@ -10,6 +10,7 @@ import {
 import { SearchFilters, VectorStoreResult } from "../types";
 import { VectorStore } from "./base";
 import { defaultProvider } from "@aws-sdk/credential-provider-node";
+import { logger } from "../utils/logger";
 
 export type OpenSearchConfig = {
   user?: string;
@@ -90,8 +91,6 @@ export class OpenSearchVectorStore implements VectorStore {
 
     this.collectionName = config.collectionName;
     this.embeddingModelDims = config.embeddingModelDims || 1536;
-
-    this.init().catch(console.error);
   }
 
   /** Initialize the OpenSearch index (create if not exist) */
@@ -131,7 +130,7 @@ export class OpenSearchVectorStore implements VectorStore {
       } as const;
 
       await this.client.indices.create({ index: name, body: indexSettings });
-      console.debug(`mem0 OpenSearchVectorStore Created index ${name}`);
+      logger.debug(`mem0 OpenSearchVectorStore Created index ${name}`);
 
       // Wait for index to be searchable
       const maxRetries = 60;
@@ -142,7 +141,7 @@ export class OpenSearchVectorStore implements VectorStore {
             index: name,
             body: { query: { match_all: {} }, size: 1 },
           });
-          console.debug(`mem0 OpenSearchVectorStore Index ${name} is ready`);
+          logger.debug(`mem0 OpenSearchVectorStore Index ${name} is ready`);
           return;
         } catch {
           retryCount += 1;
@@ -155,7 +154,7 @@ export class OpenSearchVectorStore implements VectorStore {
         }
       }
     } else {
-      console.debug(`mem0 OpenSearchVectorStore Index ${name} already exists`);
+      logger.debug(`mem0 OpenSearchVectorStore Index ${name} already exists`);
     }
   }
 
@@ -275,6 +274,7 @@ export class OpenSearchVectorStore implements VectorStore {
     };
   }
 
+  // Note: OpenSearch update API is asynchronous; updating may take time.
   public async update(
     vectorId: string,
     vector: number[],
@@ -316,6 +316,7 @@ export class OpenSearchVectorStore implements VectorStore {
     }
   }
 
+  // Note: OpenSearch delete API is asynchronous; deletion may take time.
   public async delete(vectorId: string): Promise<void> {
     const searchQuery = { query: { term: { id: vectorId } }, size: 1 };
     const response = await this.client.search({

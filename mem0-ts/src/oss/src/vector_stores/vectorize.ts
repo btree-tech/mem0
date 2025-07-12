@@ -26,7 +26,6 @@ export class VectorizeDB implements VectorStore {
     this.dimensions = config.dimension || 1536;
     this.indexName = config.indexName;
     this.accountId = config.accountId;
-    this.initialize().catch(console.error);
   }
 
   async insert(

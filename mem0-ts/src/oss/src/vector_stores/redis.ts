@@ -180,11 +180,6 @@ export class RedisDB implements VectorStore {
 
     this.client.on("error", (err) => console.error("Redis Client Error:", err));
     this.client.on("connect", () => console.log("Redis Client Connected"));
-
-    this.initialize().catch((err) => {
-      console.error("Failed to initialize Redis:", err);
-      throw err;
-    });
   }
 
   private async createIndex(): Promise<void> {
