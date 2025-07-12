@@ -1,6 +1,6 @@
 {
   "name": "@btree-tech/mem0",
-  "version": "2.1.36-b3",
+  "version": "2.1.36-b4",
   "description": "The Memory Layer For Your AI Apps",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
