@@ -289,5 +289,48 @@ describe.each([
       // Results should be ordered by relevance
       expect(result.results.length).toBeGreaterThan(0);
     });
+
+    it("should search memories with runId", async () => {
+      (await memory.add(
+        "Hi, my name is John and I am a software engineer.",
+        { userId },
+      )) as SearchResult;
+
+      const runId1 = 
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
+      (await memory.add(
+        "I drink beer everyday.",
+        { userId, runId: runId1 },
+      )) as SearchResult;
+
+      const runId2 = 
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
+      (await memory.add(
+        "I drink coffee everyday.",
+        { userId, runId: runId2 },
+      )) as SearchResult;
+
+      {
+        const result = (await memory.search("What is the best drink for me?", {
+          userId, runId: runId1
+        })) as SearchResult;
+
+        expect(result).toBeDefined();
+        expect(Array.isArray(result.results)).toBe(true);
+        expect(result.results[0].memory).toContain('beer')
+      }
+      {
+        const result = (await memory.search("What is the best drink for me?", {
+          userId, runId: runId2
+        })) as SearchResult;
+
+        expect(result).toBeDefined();
+        expect(Array.isArray(result.results)).toBe(true);
+        expect(result.results[0].memory).toContain('coffee')
+      }
+
+    });    
   });
 });
