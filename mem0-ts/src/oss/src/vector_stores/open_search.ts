@@ -42,6 +42,7 @@ export class OpenSearchVectorStore implements VectorStore {
   private client: OpenSearchClient;
   private collectionName: string;
   private embeddingModelDims: number;
+  private spaceType: string = 'cosinesimil';
   private userId: string | null = null;
 
   constructor(config: OpenSearchConfig) {
@@ -110,21 +111,41 @@ export class OpenSearchVectorStore implements VectorStore {
         return { body: false };
       });
     if (indexExists.body === false) {
+      // use script score
+      // https://opensearch.org/docs/latest/search-plugins/knn/knn-score-script/#getting-started-with-the-score-script-for-vectors
       const indexSettings = {
-        settings: { "index.knn": true },
+        settings: {
+          index: {
+            'knn.algo_param': {
+              'ef_search': '512'
+            },
+            'knn': 'false',
+          }
+        },
         mappings: {
+          dynamic: 'false',
           properties: {
             vector_field: {
               type: "knn_vector",
               dimension: vectorSize,
-              method: {
-                engine: "nmslib",
-                name: "hnsw",
-                space_type: "cosinesimil",
-              },
             },
-            payload: { type: "object" },
-            id: { type: "keyword" },
+            payload: {
+              type: "object",
+              properties: {
+                userId: {
+                  type: 'keyword',
+                },
+                runId: {
+                  type: 'keyword',
+                },
+                categories: {
+                  type: 'keyword',
+                },
+              }
+            },
+            id: {
+              type: "keyword"
+            },
           },
         },
       } as const;
@@ -193,15 +214,6 @@ export class OpenSearchVectorStore implements VectorStore {
     limit: number = 5,
     filters?: SearchFilters,
   ): Promise<VectorStoreResult[]> {
-    const knnQuery = {
-      knn: {
-        vector_field: {
-          vector: query,
-          k: limit * 2,
-        },
-      },
-    };
-
     const filterClauses: any[] = [];
     if (filters) {
       for (const key of ["userId", "runId", "agentId"] as Array<
@@ -209,7 +221,7 @@ export class OpenSearchVectorStore implements VectorStore {
       >) {
         const value = filters[key];
         if (value) {
-          filterClauses.push({ term: { [`payload.${key}.keyword`]: value } });
+          filterClauses.push({ term: { [`payload.${key}`]: value } });
         }
       }
       for (const arrayKey of ["categories"] as Array<keyof SearchFilters>) {
@@ -217,7 +229,7 @@ export class OpenSearchVectorStore implements VectorStore {
           for (const value of filters[arrayKey]) {
             if (value) {
               filterClauses.push({
-                term: { [`payload.${arrayKey}.keyword`]: value },
+                term: { [`payload.${arrayKey}`]: value },
               });
             }
           }
@@ -227,15 +239,37 @@ export class OpenSearchVectorStore implements VectorStore {
 
     const queryBody: any = {
       size: limit * 2,
-      query: filterClauses.length
-        ? { bool: { must: knnQuery, filter: filterClauses } }
-        : knnQuery,
+      query: {
+        script_score: {
+          query: {
+            bool: {
+              filter: {
+                bool: {
+                  must: filterClauses
+                }
+              },
+            },
+          },
+          script: {
+            lang: "knn",
+            source: "knn_score",
+            params: {
+              field: "vector_field",
+              query_value: query,
+              space_type: this.spaceType,
+            }
+          }
+        }
+      },
     };
 
     const response = await this.client.search({
       index: this.collectionName,
       body: queryBody,
     });
+
+    // queryBody.query.script_score.script.params.query_value = '**'
+    // logger.debug(JSON.stringify(queryBody))
 
     const hits = response.body.hits.hits;
     return hits.map((hit: any) => ({
@@ -353,7 +387,7 @@ export class OpenSearchVectorStore implements VectorStore {
       >) {
         const value = filters[key];
         if (value) {
-          filterClauses.push({ term: { [`payload.${key}.keyword`]: value } });
+          filterClauses.push({ term: { [`payload.${key}`]: value } });
         }
       }
     }
