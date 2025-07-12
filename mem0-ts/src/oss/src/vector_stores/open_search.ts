@@ -42,7 +42,7 @@ export class OpenSearchVectorStore implements VectorStore {
   private client: OpenSearchClient;
   private collectionName: string;
   private embeddingModelDims: number;
-  private spaceType: string = 'cosinesimil';
+  private spaceType: string = "cosinesimil";
   private userId: string | null = null;
 
   constructor(config: OpenSearchConfig) {
@@ -116,14 +116,14 @@ export class OpenSearchVectorStore implements VectorStore {
       const indexSettings = {
         settings: {
           index: {
-            'knn.algo_param': {
-              'ef_search': '512'
+            "knn.algo_param": {
+              ef_search: "512",
             },
-            'knn': 'false',
-          }
+            knn: "false",
+          },
         },
         mappings: {
-          dynamic: 'false',
+          dynamic: "false",
           properties: {
             vector_field: {
               type: "knn_vector",
@@ -133,21 +133,21 @@ export class OpenSearchVectorStore implements VectorStore {
               type: "object",
               properties: {
                 userId: {
-                  type: 'keyword',
+                  type: "keyword",
                 },
                 runId: {
-                  type: 'keyword',
+                  type: "keyword",
                 },
                 agentId: {
-                  type: 'keyword',
+                  type: "keyword",
                 },
                 categories: {
-                  type: 'keyword',
+                  type: "keyword",
                 },
-              }
+              },
             },
             id: {
-              type: "keyword"
+              type: "keyword",
             },
           },
         },
@@ -248,8 +248,8 @@ export class OpenSearchVectorStore implements VectorStore {
             bool: {
               filter: {
                 bool: {
-                  must: filterClauses
-                }
+                  must: filterClauses,
+                },
               },
             },
           },
@@ -260,9 +260,9 @@ export class OpenSearchVectorStore implements VectorStore {
               field: "vector_field",
               query_value: query,
               space_type: this.spaceType,
-            }
-          }
-        }
+            },
+          },
+        },
       },
     };
 

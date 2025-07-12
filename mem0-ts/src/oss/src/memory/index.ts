@@ -609,7 +609,7 @@ export class Memory {
     );
     // Re-init DB if needed (though db.reset() likely handles its state)
     // Re-init Graph if needed
-    this.graphMemory?.close()
+    this.graphMemory?.close();
 
     // Initialize graph memory if configured
     if (this.enableGraph && this.config.graphStore) {

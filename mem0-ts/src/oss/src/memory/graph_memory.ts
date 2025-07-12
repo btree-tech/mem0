@@ -673,6 +673,6 @@ export class MemoryGraph {
     }
   }
   async close() {
-    return this.graph.close()
+    return this.graph.close();
   }
 }

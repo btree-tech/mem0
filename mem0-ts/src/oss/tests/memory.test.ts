@@ -18,54 +18,54 @@ describe.each([
           dimension: 1536,
         },
       },
-    }
+    },
   ],
   [
     "OpenSearch",
     {
       vectorStore: {
-        provider: 'opensearch',
+        provider: "opensearch",
         config: {
-          host: 'localhost',
+          host: "localhost",
           port: 9200,
-          collectionName: 'mem0_test_memories',
+          collectionName: "mem0_test_memories",
           embeddingModelDims: 1536,
-        }
+        },
       },
-    }
+    },
   ],
   [
     "OpenSearch with graph",
     {
       vectorStore: {
-        provider: 'opensearch',
+        provider: "opensearch",
         config: {
-          host: 'localhost',
+          host: "localhost",
           port: 9200,
-          collectionName: 'mem0_test_memories',
+          collectionName: "mem0_test_memories",
           embeddingModelDims: 1536,
-        }
+        },
       },
       enableGraph: true,
       graphStore: {
         provider: "neo4j",
         config: {
-          "url": "neo4j://localhost:7687",
-          "username": "neo4j",
-          "password": "neo4j",
+          url: "neo4j://localhost:7687",
+          username: "neo4j",
+          password: "neo4j",
         },
         llm: {
-          provider: 'openai',
+          provider: "openai",
           config: {
-            model: 'gpt-4o-mini',
+            model: "gpt-4o-mini",
             temperature: 0.0,
             apiKey: process.env.OPENAI_API_KEY,
-          }
-        }
-      }      
-    }
-  ]
-])('%s', (name: string, partialMemoryConfig: any) => { 
+          },
+        },
+      },
+    },
+  ],
+])("%s", (name: string, partialMemoryConfig: any) => {
   let memory: Memory;
   const userId =
     Math.random().toString(36).substring(2, 15) +
@@ -90,7 +90,7 @@ describe.each([
         },
       },
       historyDbPath: ":memory:", // Use in-memory SQLite for tests
-      ...partialMemoryConfig
+      ...partialMemoryConfig,
     });
     // Reset all memories before each test
     await memory.reset();
@@ -169,8 +169,8 @@ describe.each([
 
       // Wait due to asynchronous update in OpenSearch
       await new Promise((resolve) => {
-        setTimeout(resolve, 1 * 1000)
-      })
+        setTimeout(resolve, 1 * 1000);
+      });
 
       // Verify the update by getting the memory
       const updatedMemory = (await memory.get(memoryId)) as MemoryItem;
@@ -241,8 +241,8 @@ describe.each([
 
       // Wait due to asynchronous delete in OpenSearch
       await new Promise((resolve) => {
-        setTimeout(resolve, 1 * 1000)
-      })
+        setTimeout(resolve, 1 * 1000);
+      });
 
       // Try to get the deleted memory - should throw or return null
       const result = await memory.get(memoryId);
@@ -255,7 +255,7 @@ describe.each([
 
       const result = (await memory.getAll({ userId })) as SearchResult;
 
-      expect(result.results[0].metadata?.categories).toContain('technology')
+      expect(result.results[0].metadata?.categories).toContain("technology");
     });
 
     it("should return memories by specified categories", async () => {
@@ -291,46 +291,46 @@ describe.each([
     });
 
     it("should search memories with runId", async () => {
-      (await memory.add(
-        "Hi, my name is John and I am a software engineer.",
-        { userId },
-      )) as SearchResult;
+      (await memory.add("Hi, my name is John and I am a software engineer.", {
+        userId,
+      })) as SearchResult;
 
-      const runId1 = 
+      const runId1 =
         Math.random().toString(36).substring(2, 15) +
         Math.random().toString(36).substring(2, 15);
-      (await memory.add(
-        "I drink beer everyday.",
-        { userId, runId: runId1 },
-      )) as SearchResult;
+      (await memory.add("I drink beer everyday.", {
+        userId,
+        runId: runId1,
+      })) as SearchResult;
 
-      const runId2 = 
+      const runId2 =
         Math.random().toString(36).substring(2, 15) +
         Math.random().toString(36).substring(2, 15);
-      (await memory.add(
-        "I drink coffee everyday.",
-        { userId, runId: runId2 },
-      )) as SearchResult;
+      (await memory.add("I drink coffee everyday.", {
+        userId,
+        runId: runId2,
+      })) as SearchResult;
 
       {
         const result = (await memory.search("What is the best drink for me?", {
-          userId, runId: runId1
+          userId,
+          runId: runId1,
         })) as SearchResult;
 
         expect(result).toBeDefined();
         expect(Array.isArray(result.results)).toBe(true);
-        expect(result.results[0].memory).toContain('beer')
+        expect(result.results[0].memory).toContain("beer");
       }
       {
         const result = (await memory.search("What is the best drink for me?", {
-          userId, runId: runId2
+          userId,
+          runId: runId2,
         })) as SearchResult;
 
         expect(result).toBeDefined();
         expect(Array.isArray(result.results)).toBe(true);
-        expect(result.results[0].memory).toContain('coffee')
+        expect(result.results[0].memory).toContain("coffee");
       }
-
-    });    
+    });
   });
 });
